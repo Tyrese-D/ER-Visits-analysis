@@ -1,0 +1,65 @@
+/*
+  Emergency Room Analytics: SQL Data Transformation
+  Dataset: Hospital ER.csv
+  Purpose: Transform raw clinical data into structured metrics for dashboarding.
+*/
+
+-- 1. DATABASE SETUP & CLEANING
+-- Addressing null values in satisfaction_score and department_referral
+CREATE TABLE hospital_er_visits (
+    visit_date TIMESTAMP,
+    patient_id VARCHAR(50),
+    gender VARCHAR(10),
+    age INT,
+    satisfaction_score FLOAT,
+    first_initial VARCHAR(5),
+    last_name VARCHAR(50),
+    race VARCHAR(50),
+    is_admitted BOOLEAN,
+    wait_time_mins INT,
+    referral_dept VARCHAR(50)
+);
+
+-- 2. CORE DASHBOARD METRICS
+-- Generates the High-Level KPIs (Total Volume, Avg Wait, Global Satisfaction)
+SELECT 
+    COUNT(patient_id) AS total_patients,
+    ROUND(AVG(wait_time_mins), 2) AS avg_wait_time,
+    ROUND(AVG(satisfaction_score), 2) AS avg_satisfaction
+FROM hospital_er_visits;
+
+-- 3. DEMOGRAPHIC SEGMENTATION
+-- Breakdown of Patient Volume by Race & Age Group
+SELECT 
+    race,
+    CASE 
+        WHEN age <= 18 THEN '0-18yrs'
+        WHEN age <= 65 THEN '19-65yrs'
+        ELSE '66yrs+' 
+    END AS age_group,
+    COUNT(patient_id) AS patient_count
+FROM hospital_er_visits
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+
+-- 4. OPERATIONAL EFFICIENCY (HEATMAP LOGIC)
+-- Calculating Avg Wait Time by Day and Hour (Focusing on early morning peaks)
+SELECT 
+    TO_CHAR(visit_date, 'Day') AS day_of_week,
+    EXTRACT(HOUR FROM visit_date) AS hour_of_day,
+    ROUND(AVG(wait_time_mins), 2) AS hourly_avg_wait
+FROM hospital_er_visits
+WHERE EXTRACT(HOUR FROM visit_date) BETWEEN 0 AND 6
+GROUP BY 1, 2
+ORDER BY 2 ASC;
+
+-- 5. SATISFACTION BY REFERRAL DEPARTMENT
+-- Identifying performance by clinical department
+SELECT 
+    COALESCE(referral_dept, 'None') AS department,
+    ROUND(AVG(satisfaction_score), 2) AS avg_score,
+    COUNT(patient_id) AS response_volume
+FROM hospital_er_visits
+WHERE satisfaction_score IS NOT NULL
+GROUP BY 1
+ORDER BY 2 DESC;
